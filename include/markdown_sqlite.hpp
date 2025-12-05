@@ -6,6 +6,7 @@ namespace MSQLite{
 class Database {
 public:
     Database(const char* path);
+    ~Database();
     void create_table();
     short safe_create_table() noexcept;
     void insert_document(const std::vector<MParser::Header> header,

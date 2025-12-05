@@ -8,6 +8,9 @@ Database::Database(const char* path) {
     // 启用WAL模式提升并发性能
     // execute("PRAGMA journal_mode=WAL;");
 }
+Database::~Database() {
+    sqlite3_close(db_);
+}
 void Database::create_table() {
     const char* sql =
         " CREATE TABLE IF NOT EXISTS documents ( id INTEGER PRIMARY KEY, title TEXT NOT NULL, raw_text TEXT, last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP); CREATE TABLE IF NOT EXISTS keywords ( id INTEGER PRIMARY KEY, doc_id INTEGER , keyword TEXT NOT NULL, UNIQUE(doc_id, keyword)); ";
