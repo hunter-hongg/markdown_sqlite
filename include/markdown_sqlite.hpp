@@ -1,11 +1,21 @@
 #pragma once
+extern "C" {
 #include <sqlite3.h>
+}
 #include <markdown_parser.hpp>
 
-namespace MSQLite{
+namespace MSQLite {
 class Database {
 public:
     Database(const char* path);
+    Database() {
+        db_ = nullptr;
+    }
+    void set_database(const char* path) {
+        if (sqlite3_open(path, &db_) != SQLITE_OK) {
+            throw std::runtime_error(sqlite3_errmsg(db_));
+        }
+    }
     ~Database();
     void create_table();
     short safe_create_table() noexcept;
