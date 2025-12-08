@@ -64,34 +64,79 @@ void Database::insert_keyword(int id, std::string keyword) {
     sqlite3_finalize(stmt);
 }
 std::vector<std::pair<std::string, std::string>> Database::search_keyword(std::string keyword) {
-    sqlite3_stmt* stmt, *stmt_inwhile;
-    const char* sql = "SELECT id, doc_id FROM keywords WHERE keyword LIKE ?";
-    sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    std::vector<std::pair<std::string, std::string>> results;
 
-    std::string search = "%" + keyword + "%";
-    sqlite3_bind_text(stmt, 1, search.c_str(), -1, SQLITE_TRANSIENT);
+    // 使用JOIN一次查询完成
+    const char* sql =
+        "SELECT d.title, d.raw_text "
+        "FROM documents d "
+        "JOIN keywords k ON d.id = k.doc_id "
+        "WHERE k.keyword LIKE ?";
 
-    int rc;
-    std::vector<std::pair<std::string, std::string>> vecret;
-    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-        int id = sqlite3_column_int(stmt, 0);
-        int doc_id = sqlite3_column_int(stmt, 1);
+    sqlite3_stmt* stmt = nullptr;
 
-        const char* sql = "SELECT id, title, raw_text FROM documents WHERE id = ?";
-        sqlite3_prepare_v2(db_, sql, -1, &stmt_inwhile, nullptr);
-
-        sqlite3_bind_text(stmt_inwhile, 1, std::to_string(doc_id).c_str(), -1, SQLITE_TRANSIENT);
-
-        sqlite3_step(stmt_inwhile);
-        std::string title =
-            my_to_string(sqlite3_column_text(stmt_inwhile, 1));
-        std::string raw_text = my_to_string(sqlite3_column_text(stmt_inwhile, 2));
-        sqlite3_finalize(stmt_inwhile);
-
-        vecret.push_back(std::make_pair(title, raw_text));
+    // 准备语句
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        throw std::runtime_error(sqlite3_errmsg(db_));
     }
+
+    // 绑定搜索参数
+    std::string search_pattern = "%" + keyword + "%";
+    sqlite3_bind_text(stmt, 1, search_pattern.c_str(), -1, SQLITE_STATIC);
+
+    // 执行查询
+    int rc;
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        // 获取标题
+        const unsigned char* title_ptr = sqlite3_column_text(stmt, 0);
+        std::string title = title_ptr ?
+                            reinterpret_cast<const char*>(title_ptr) : "";
+
+        // 获取内容
+        const unsigned char* content_ptr = sqlite3_column_text(stmt, 1);
+        std::string content = content_ptr ?
+                              reinterpret_cast<const char*>(content_ptr) : "";
+
+        // 添加到结果
+        results.emplace_back(std::move(title), std::move(content));
+    }
+
+    // 检查是否有错误
+    if (rc != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        throw std::runtime_error("搜索执行失败");
+    }
+
     sqlite3_finalize(stmt);
-    return vecret;
+    return results;
+// sqlite3_stmt* stmt, *stmt_inwhile;
+// const char* sql = "SELECT id, doc_id FROM keywords WHERE keyword LIKE ?";
+// sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+//
+// std::string search = "%" + keyword + "%";
+// sqlite3_bind_text(stmt, 1, search.c_str(), -1, SQLITE_TRANSIENT);
+//
+// int rc;
+// std::vector<std::pair<std::string, std::string>> vecret;
+// while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+//     int id = sqlite3_column_int(stmt, 0);
+//     int doc_id = sqlite3_column_int(stmt, 1);
+//
+//     const char* sql = "SELECT id, title, raw_text FROM documents WHERE id = ?";
+//     sqlite3_prepare_v2(db_, sql, -1, &stmt_inwhile, nullptr);
+//
+//     sqlite3_bind_text(stmt_inwhile, 1, std::to_string(doc_id).c_str(), -1, SQLITE_TRANSIENT);
+//
+//     sqlite3_step(stmt_inwhile);
+//     std::string title =
+//         my_to_string(sqlite3_column_text(stmt_inwhile, 1));
+//     std::string raw_text = my_to_string(sqlite3_column_text(stmt_inwhile, 2));
+//     sqlite3_finalize(stmt_inwhile);
+//
+//     vecret.push_back(std::make_pair(title, raw_text));
+// }
+// sqlite3_finalize(stmt);
+// return vecret;
 }
 int Database::test_database() {
     std::string Markdown = R"(
